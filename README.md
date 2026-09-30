@@ -22,6 +22,25 @@ python run.py scan --days 60
 python -m unittest discover -s tests -v
 ```
 
+## Long/short ve çoklu bölge karşılaştırması
+
+Bu deney canlı tarayıcıdan ayrıdır; mevcut tarayıcı hâlâ ilk alış yönlü kurallarla çalışır.
+
+```powershell
+python tools/compare_variants.py --days 180
+python tools/validate_experiments.py
+```
+
+Her sembol için aynı Binance USD-M vadeli mumları ve tarihsel fonlama kayıtları üzerinde dört varyant karşılaştırılır:
+`long_only_baseline`, `long_short_baseline`, `long_only_mtf`, `long_short_mtf`.
+MTF adayı, 1 saatlik giriş bölgesinin aktif 4 saatlik destekleyici bölgeyle örtüşmesini ve karşı 4 saatlik bölgeye en az bir yapısal geçersizleşme mesafesi kadar alan bulunmasını ister. Giriş teyidi yine 15 dakikadır; çıkış kuralları aynı tutulur.
+
+Short sinyalleri, yalnız ilk mumun açılışıyla belirlenen sabit bir eksen etrafında fiyat yansıtılarak long kurallarının simetriğiyle üretilir. Yansıtılmış sanal hesap sonuçları kullanılmaz; işlemler gerçek vadeli fiyatlarından, short yönüne uygun komisyon/fiyat kayması ve tarihsel fonlamayla yeniden muhasebeleştirilir. Eksenin hesaplanmasında gelecekteki maksimum/minimum fiyat kullanılmaz.
+
+Hesap başlangıcı 10.000 USDT, işlem başına sermaye tahsisi %10; aynı anda bir tam teminatlı pozisyon. Karşı yön sinyalleri varsa önce çıkış sonra giriş işlenir. Bu bir borsa teminat kademesi/tasfiye simülatörü değildir. Normal ve iki kat maliyet sonuçları, işlem sayısı, kazanma oranı, azami düşüş ve üç kronolojik dönemin getirileri kaydedilir. Yakın dönem önceden incelendiği için sonuçlar **dokunulmamış test / doğrulanmış başarı** olarak sunulmaz.
+
+Yerel sonuç: `reports/experiments/comparison.json`; tekrar doğrulama: `reports/experiments/validation.json`. Ham piyasa verileri ve ayrıntılı çalışma raporları GitHub'a yüklenmez. İlk deneyin özeti [deney notlarında](docs/experiment-001.md).
+
 Varsayılan araştırma evreni BTCUSDT, ETHUSDT; THYAO.IS, GARAN.IS, EREGL.IS.
 Bu seçim altyapıyı denemek içindir, yatırım önerisi veya tarihsel evren değildir.
 

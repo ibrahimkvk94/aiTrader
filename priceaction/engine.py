@@ -90,8 +90,9 @@ class Structure:
 
 
 class Engine:
-    def __init__(self, cfg):
+    def __init__(self, cfg, entry_filter=None):
         self.cfg = cfg
+        self.entry_filter = entry_filter
         self.base = Structure(cfg, "base")
         self.setup = Structure(cfg, "setup")
         self.context = Structure(cfg, "context")
@@ -185,7 +186,7 @@ class Engine:
                 if bar.low <= zone.high and bar.high >= zone.low and bar.close >= zone.low:
                     zone.touched_at = index
             candidates = [z for z in zones if z.touched_at >= 0 and index - z.touched_at <= self.cfg["entry_window"]
-                          and bar.close > z.high]
+                          and bar.close > z.high and (self.entry_filter is None or self.entry_filter(self, bar, z))]
             if (self.context.trend == 1 and self.setup.trend == 1 and signal["bull"]
                     and self.base.atr and candidates):
                 zone = sorted(candidates, key=lambda z: (z.kind == "breaker", z.known_at), reverse=True)[0]
@@ -222,11 +223,11 @@ class Engine:
                 "open_position": self.position, "pending": self.pending}
 
 
-def replay(cfg, bars, setups, contexts):
+def replay(cfg, bars, setups, contexts, entry_filter=None):
     validate_bars(bars, continuous=cfg["market"] == "crypto")
     validate_bars(setups)
     validate_bars(contexts)
-    engine = Engine(cfg)
+    engine = Engine(cfg, entry_filter=entry_filter)
     si = ci = 0
     for bar in bars:
         new_s, new_c = [], []
