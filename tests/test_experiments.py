@@ -1,6 +1,6 @@
 import unittest
 from priceaction.engine import Engine, Zone, replay
-from priceaction.experiments import account, mtf_filter, reflect, direction_signals
+from priceaction.experiments import account, mtf_filter, reflect, direction_signals, research_filter
 from priceaction.model import Bar, config, aggregate
 
 
@@ -61,6 +61,30 @@ class ExperimentTests(unittest.TestCase):
     def test_reflection_is_involutive_and_preserves_time(self):
         bars=[b(i,100+i) for i in range(10)]
         self.assertEqual(reflect(reflect(bars,10000),10000),bars)
+
+    def test_sweep_filter_requires_recent_confirmed_sweep(self):
+        e=Engine(self.cfg)
+        e.base.bars=[b(i,100) for i in range(12)]
+        zone=Zone('setup',95,98,'breaker',0,900,100)
+        self.assertFalse(research_filter(e,b(11,100),zone,require_sweep=True))
+        e.last_sweep=3
+        self.assertTrue(research_filter(e,b(11,100),zone,require_sweep=True))
+        e.last_sweep=2
+        self.assertFalse(research_filter(e,b(11,100),zone,require_sweep=True))
+        e.last_sweep=12
+        self.assertFalse(research_filter(e,b(11,100),zone,require_sweep=True))
+
+    def test_warmup_blocks_entries_but_accepts_start_boundary_signal(self):
+        e=Engine(self.cfg)
+        zone=Zone('setup',95,98,'demand',0,900,100)
+        self.assertFalse(research_filter(e,b(1,100),zone,trade_start=2700))
+        self.assertTrue(research_filter(e,b(2,100),zone,trade_start=2700))
+
+    def test_entry_model_is_preserved_for_loss_diagnostics(self):
+        orders=[{'time':0,'action':'BUY','side':1,'reason':'entry','model':'demand_sweep'},
+                {'time':900,'action':'SELL','side':1,'reason':'exit'}]
+        result=account(self.cfg,[b(0,100),b(1,100)],orders,[])
+        self.assertEqual(result['trades'][0]['model'],'demand_sweep')
 
     def test_long_account_matches_reference_engine_without_funding(self):
         # Exercise source engine entry/exit via deterministic structural seed.

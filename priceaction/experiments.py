@@ -103,15 +103,27 @@ def reflect(bars, anchor):
             for b in bars]
 
 
-def direction_signals(cfg, bars, side, use_mtf=False):
+def research_filter(engine, bar, zone, use_mtf=False, require_sweep=False, trade_start=None):
+    # Warm indicators without opening simulated positions before the test window.
+    if trade_start is not None and bar.end < trade_start:
+        return False
+    if require_sweep and not 0 <= len(engine.base.bars)-1-engine.last_sweep <= engine.cfg["entry_window"]:
+        return False
+    return not use_mtf or mtf_filter(engine, bar, zone)
+
+
+def direction_signals(cfg, bars, side, use_mtf=False, require_sweep=False, trade_start=None):
     if side not in (1, -1):
         raise ValueError("Side must be 1 or -1")
     # Anchor uses first observed price, never full-sample min/max.
     signal_bars = bars if side == 1 else reflect(bars, bars[0].open * 100)
     signal_cfg = {**cfg, "fee_bps": 0, "slippage_bps": 0}
+    entry_filter = lambda engine, bar, zone: research_filter(
+        engine, bar, zone, use_mtf, require_sweep, trade_start)
     engine = replay(signal_cfg, signal_bars, aggregate(signal_bars, 3600), aggregate(signal_bars, 14400),
-                    entry_filter=mtf_filter if use_mtf else None)
-    orders = [{"time": e["time"], "action": e["action"], "side": side, "reason": e["reason"]}
+                    entry_filter=entry_filter)
+    orders = [{"time": e["time"], "action": e["action"], "side": side, "reason": e["reason"],
+               "model": e.get("model")}
               for e in engine.events if e["action"] in {"BUY", "SELL"}]
     return orders
 
@@ -164,7 +176,8 @@ def account(cfg, bars, orders, funding):
                 qty = margin/price
                 cash -= margin+entry_fee
                 position = {"side": side, "entry_time": bar.start, "entry_price": price, "qty": qty,
-                            "margin": margin, "entry_fee": entry_fee, "funding": 0.0}
+                            "margin": margin, "entry_fee": entry_fee, "funding": 0.0,
+                            "model": order.get("model", "unknown")}
         value = cash
         if position:
             value += position["margin"] + position["side"]*position["qty"]*(bar.close-position["entry_price"])

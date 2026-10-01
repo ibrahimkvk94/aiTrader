@@ -22,6 +22,70 @@ python run.py scan --days 60
 python -m unittest discover -s tests -v
 ```
 
+## Planlı setup / dinamik işlem yönetimi
+
+Eklemeli/eklemesiz eşit referans risk karşılaştırması: [Deney 005 sonuçları](docs/experiment-005-results.md).
+`python tools/compare_additions.py` mevcut donmuş BTC/ETH verisinde üç yönetim kolunu karşılaştırır;
+bu bağımsız setup araştırmasıdır, tek hesap getirisi veya BIST testi değildir. Otomatik bölge
+üreticisi bu araştırmaya özeldir; canlı tarayıcıya bağlanmamıştır.
+
+Yeni `planned-lifecycle-v1` modülü, baştan belirlenen giriş/ekleme bölgeleri,
+yapısal stop ve TP'leri değişmez bir plan olarak saklar. Kripto vadeli long/short,
+kripto spot long ve BIST long ayrı profillerdir. Bu katman **çevrimdışı araştırmadır**;
+mevcut `scan`/`serve` tarayıcısının stratejisini veya çalışan panelini değiştirmez.
+Otomatik bölge çıkarımı henüz bu katmana bağlanmadı; seviyeler giriş JSON'unda verilir.
+Kriptotiks'in birebir stratejisi veya kârlılığı doğrulanmış bir sistem değildir.
+
+```powershell
+python run.py plan-replay --demo
+python run.py plan-replay --input examples/planned-trade.json
+```
+
+Demo dört **sentetik** senaryo çalıştırır: long, short, kısmi kâr sonrası boşluklu stop,
+BIST/seans boşlukları. Örnek dosyanın fiyatları/zamanları yalnız yazılım testi içindir,
+işlem sinyali değildir. Gerçek veriyle aynı şema kullanılabilir. Varsayılan raporlar
+`reports/plans/` altında içerik hash'li JSON olarak saklanır. `--output yeni-dosya.json`
+verilebilir; farklı mevcut raporun üstüne yazılmaz. Kaynak, plan ve veri hash'leri,
+tüm kararlar, gerçekleşmeler, ücretler, koruma değişiklikleri ve prefix kontrolleri kaydedilir.
+
+### İlk sürümün açık işlem kuralları
+
+- Plan, `created_at` zamanında tüm seviyelerin bilindiğini varsayar; gelecekte öğrenilen
+  bölgeleri geçmiş plana koymak yasaktır. Alan bunu belgeler, manuel kaynağı doğrulamaz.
+- Giriş/ekleme: baz mum **sıradaki bölgenin içinde kapandığında** sinyal; sonraki açılış
+  hâlâ bölgedeyse maliyetli simülasyon. Anlık dokunma/limit emri simüle edilmez. Her kademe
+  bir kere dolar, en fazla bir kademe/mum. Kaçan emir tekrar uygun kapanış bekleyebilir.
+- Kurulum giriş öncesi stop zaman diliminde geçersizleşirse veya süresi dolarsa iptal olur.
+  `expires_at` yalnız ilk girişi sınırlar; açık işlemi zaman aşımıyla kapatmaz.
+- Stop: `stop_frame` mumunun aktif sınırın **kesin ötesinde** kapanışı; fitil veya eşit
+  kapanış çıkış değildir. Gerçekleşme sonraki mevcut açılıştadır; boşluk zararı gizlenmez.
+- TP: baz mum kapanışı hedefi doğrular, sonraki açılışta kısmi çıkılır. Bu da limit TP
+  değildir; sonraki açılışın kötüleşmesi gerçek simülasyon sonucuna yansır. Aynı kapanışta
+  stop önceliklidir; birden fazla TP geçilirse toplam pay tek emirde çıkar.
+- İlk TP sinyaliyle kalan eklemeler kapanır. TP payları o andaki **gerçekten dolmuş**
+  toplam miktarın payıdır, toplamları 1 olur. BIST kısmi lotları aşağı yuvarlanır;
+  bir lot altı ara hedef atlanır, son hedef kalan bütün lotları kapatır.
+- `protection: "bos"`: stop zaman diliminde yönlü yapı kırılması sonrası, kırılan swing'den
+  sonra ve girişten itibaren oluşmuş, kırılım mumu açılmadan önce teyit edilmiş karşı pivot
+  koruma adayıdır. Koruma yalnız sıkılaşır; yeni seviye aynı mumun geçmişine uygulanmaz.
+  `"fixed"` başlangıç yapısal sınırını korur. Keyfî genişletme, otomatik maliyet stopu veya
+  stop olduktan sonra yeniden giriş yoktur. Yeniden giriş yeni plan gerektirir.
+- Tüm kademeler tek `max_notional` ve `risk_budget` paylaşır; her kademe ayrı risk bütçesi
+  açmaz. `risk_budget`, stop referans fiyatında masraflı **tahmini** kayıptır, gerçek azami
+  zarar garantisi değildir. Kapanışı bekleme, boşluk ve fonlama bunu aşabilir.
+- Hesap tam teminatlı varsayımsaldır; kaldıraç/tasfiye motoru veya portföy çapında risk
+  havuzu yoktur. Planlar bağımsız hesaplanır, getirileri ortak portföy gibi toplanamaz.
+- İsteğe bağlı `funding`: `{ "time": UTC_saniye, "mark": fiyat, "rate": oran }` kayıtları.
+  Açılış sınırındaki fonlama yeni emirlerden önce eski pozisyona uygulanır. Sağlanmazsa
+  raporda eksik olduğu belirtilir; boş liste kullanıcının sıfır olay beyanıdır.
+- Kripto kapanmış üst mumları aynı baz seriden üretilir. BIST haftalık/aylık stop için
+  `stop_bars` ayrıca verilmelidir; kapanış zamanları, tatiller ve şirket işlemleri veri
+  sağlayıcısında doğrulanmalıdır. BIST kısa satış/vadeli emir gönderimi yoktur.
+  Seans aralığında bilinir hale gelen üst mum, ilk sonraki baz kapanışında değerlendirilir;
+  bu çevrimdışı adaptör seans açılışından önce ayrı bir karar döngüsü çalıştırmaz.
+- Son mumdaki sinyal beklemede kalır, veri bitti diye işlem kapatılmaz. Açık PnL ilerideki
+  çıkış maliyetlerini içermez. Birim test/demo başarısı strateji getirisi kanıtı değildir.
+
 ## Long/short ve çoklu bölge karşılaştırması
 
 Bu deney canlı tarayıcıdan ayrıdır; mevcut tarayıcı hâlâ ilk alış yönlü kurallarla çalışır.
@@ -124,3 +188,40 @@ Sonraki geliştirme sırası: bağımsız kurulum etiketleme ve görsel inceleme
 - [Backtest overfitting araştırması](https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf).
 
 Harici strateji kodu kopyalanmadı; bu repo standart Python kitaplığıyla yazılmış ayrı bir deneysel uygulamadır.
+
+## Dondurulmuş dönem testi — Deney 002
+
+[Önceden sabitlenen protokol](docs/experiment-002-protocol.md) ve [tüm sonuçlar](docs/experiment-002-results.md).
+2025-10-01 → 2026-04-01 döneminde dört mevcut modele tek bir MTF+süpürme adayı eklendi. Hiçbir aday iki sembolde araştırma eleğini geçmedi; ana strateji değiştirilmedi. Bu daha eski tarihsel döneme aktarım testidir, kronolojik walk-forward veya gerçek forward test değildir.
+
+```powershell
+python tools/test_frozen_period.py
+```
+
+Komut önce Deney 001'in yerel raporu/önbelleğiyle sonuç eşitliğini doğrular; bu yüzden aynı `reports/experiments/comparison.json` ve ilgili `data/experiments` dosyaları gerekir. Bunlar henüz yoksa önce Deney 001 çalıştırılmalıdır; yeni tarihte oluşturulan bir geliştirme raporu orijinal koşunun birebir tekrarı olmaz. Deney 002 kendi manifestini, veri/kod özetlerini ve raporunu ayrı klasöre yazar; mevcut farklı kanıtların üstüne yazmayı reddeder. API tarihsel verisi revize olabilir.
+
+### İşlem düzeyinde görsel inceleme
+
+[İnceleme 001](docs/trade-review-001.md): maliyet ayrıştırması, korunan seviyenin hareketi ve altı örnek işlem. `python tools/review_trades.py` mevcut Deney 002 kayıtlarını inceler; isteğe bağlı `--charts` için Matplotlib gerekir. Strateji değiştirmez, yeni test sonucu üretmez. Raporlar ve grafikler `reports/trade-review/` altında tutulur.
+
+### BOS teyitli çıkış deneyi — Deney 003
+
+`priceaction/exit_research.py` modülündeki `bos_confirmed` politikası koruma seviyesini yalnız işlem yönünde yeni yapı kırılması teyit edildiğinde taşır. Varsayılan `Engine` ve tarayıcı değişmedi. [Kesin kural](docs/experiment-003-protocol.md) ve [karşılaştırma sonuçları](docs/experiment-003-results.md): BTC iyileşirken ETH kötüleşti, dört karşılaştırmada da düşüş arttı; otomatik terfi yapılmadı. İki dönem de geliştirme verisidir, bağımsız test değildir.
+
+```powershell
+python tools/compare_exit_policies.py
+```
+
+Mevcut Deney 001/002 raporları/önbellekleri gerekir; sonuçlar ayrı `reports/experiments/experiment-003/` klasöründedir. Önceki donmuş kaynaklar değiştirilmez.
+
+### Ana senaryo / giriş zaman dilimi ayrımı — Deney 004
+
+`priceaction/scenario_research.py` iki yeni, yalnız araştırma amaçlı çıkış politikası ekler: `scenario_only` başlangıç 1h bölgesinin kapanışla kaybı veya 4h karşı yapı ile çıkar; `setup_bos` buna yalnız 1h BOS ile taşınan koruma ekler. 15m kapanışı tek başına çıkış değildir. Giriş ve maliyet kuralları değişmez. Bu, Kriptotiks paylaşımlarından esinlenen **bizim operasyonel hipotezimizdir**, onun birebir stratejisi değildir.
+
+[Kesin protokol](docs/experiment-004-protocol.md) ve [tüm sonuçlar](docs/experiment-004-results.md): iki aday da dört eşleşmenin üçünde eski net getiriyi artırdı; hepsinde düşüş arttı, yakın dönem ETH kötüleşti. 59 birim testi ve 32 geçmiş-olay değişmezlik kontrolü geçti. Hiçbir aday araştırma eleğini geçmedi; ana tarayıcı ve BIST değişmedi.
+
+```powershell
+python tools/compare_scenario_policies.py
+```
+
+Aynı yerel Deney 001–003 kaynak/rapor/önbellekleri gerekir; yeni ağ verisi indirilmez. Manifest ve ayrıntılı sonuç `reports/experiments/experiment-004/` altındadır. Kısmi çıkış, ayrı giriş modelleri ve endeks filtresi henüz eklenmedi; sonraki ayrı deneylerdir. Her iki dönem de geliştirme verisidir, bağımsız başarı doğrulaması değildir.

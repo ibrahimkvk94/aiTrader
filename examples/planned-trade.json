@@ -1,0 +1,41 @@
+{
+  "plan": {
+    "id": "synthetic-example-not-a-market-signal",
+    "symbol": "DEMOUSDT",
+    "market": "crypto_futures",
+    "direction": 1,
+    "created_at": 0,
+    "expires_at": 86400,
+    "base_frame": "15m",
+    "stop_frame": "1h",
+    "initial_stop": 90,
+    "entries": [
+      {"id": "entry", "low": 100, "high": 102, "qty": 1},
+      {"id": "add-1", "low": 95, "high": 97, "qty": 1}
+    ],
+    "targets": [
+      {"id": "tp-1", "price": 110, "fraction": 0.5},
+      {"id": "tp-2", "price": 120, "fraction": 0.5}
+    ],
+    "initial_cash": 1000,
+    "max_notional": 300,
+    "risk_budget": 50,
+    "fee_bps": 10,
+    "slippage_bps": 5,
+    "protection": "bos",
+    "pivot_left": 2,
+    "pivot_right": 2
+  },
+  "bars": [
+    {"start": 0, "end": 900, "open": 101, "high": 102, "low": 100, "close": 101, "volume": 10},
+    {"start": 900, "end": 1800, "open": 101, "high": 102, "low": 95, "close": 96, "volume": 10},
+    {"start": 1800, "end": 2700, "open": 96, "high": 111, "low": 95, "close": 110, "volume": 10},
+    {"start": 2700, "end": 3600, "open": 112, "high": 114, "low": 111, "close": 113, "volume": 10},
+    {"start": 3600, "end": 4500, "open": 113, "high": 114, "low": 88, "close": 89, "volume": 10},
+    {"start": 4500, "end": 5400, "open": 91, "high": 93, "low": 90, "close": 92, "volume": 10},
+    {"start": 5400, "end": 6300, "open": 92, "high": 94, "low": 91, "close": 93, "volume": 10},
+    {"start": 6300, "end": 7200, "open": 93, "high": 94, "low": 87, "close": 88, "volume": 10},
+    {"start": 7200, "end": 8100, "open": 85, "high": 87, "low": 84, "close": 86, "volume": 10}
+  ],
+  "funding": []
+}

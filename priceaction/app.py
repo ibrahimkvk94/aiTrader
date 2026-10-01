@@ -173,6 +173,8 @@ def serve(service, port):
 def main():
     parser = argparse.ArgumentParser(description="Price Action Research — no real orders")
     sub = parser.add_subparsers(dest="command", required=True)
+    from .plan_replay import register_parser, main as run_plan_replay
+    register_parser(sub)
     for command in ("serve", "scan"):
         p = sub.add_parser(command)
         p.add_argument("--symbols", nargs="*", default=["BTCUSDT", "ETHUSDT"])
@@ -185,6 +187,9 @@ def main():
     for name in ("base", "setup", "context"):
         p.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
+    if args.command == 'plan-replay':
+        run_plan_replay(args)
+        return
     store = Store()
     if args.command == "import-bist":
         cfg = config("bist")
